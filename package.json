@@ -1,0 +1,38 @@
+{
+  "name": "skillmesh-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.10.0",
+  "scripts": {
+    "dev": "concurrently -n WEB,API -c cyan,magenta \"pnpm --filter @skillmesh/web dev\" \"pnpm --filter @skillmesh/api dev\"",
+    "build": "pnpm --filter @skillmesh/web build && pnpm --filter @skillmesh/api build",
+    "lint": "pnpm -r eslint .",
+    "format": "pnpm -r prettier --write .",
+    "typecheck": "pnpm -r tsc --noEmit",
+    "test": "pnpm --filter @skillmesh/api test",
+    "prepare": "husky install",
+    "bootstrap:env": "node ./infra/scripts/bootstrap-env.mjs",
+    "seed": "pnpm --filter @skillmesh/api seed"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.4.0",
+    "@commitlint/config-conventional": "^19.2.2",
+    "concurrently": "^9.0.1",
+    "dotenv-cli": "^7.4.2",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,css}": [
+      "prettier --write"
+    ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "@commitlint/config-conventional"
+    }
+  }
+}

@@ -1,0 +1,46 @@
+# Node & monorepo
+node_modules/
+pnpm-lock.yaml
+.pnpm-store/
+.vscode/
+.DS_Store
+
+# Builds / dist / caches
+dist/
+build/
+coverage/
+.cache/
+.vite/
+.vercel/
+.next/
+storybook-static/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+apps/api/.env
+apps/web/.env
+
+# Docker
+infra/*.pid
+infra/*.log
+
+# Prisma
+apps/api/prisma/dev.db
+apps/api/prisma/*.sqlite
+
+# Misc
+*.swp
+*.swo
+
+# OS
+Thumbs.db

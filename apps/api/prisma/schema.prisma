@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+model Wallet {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  balanceCredits Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model Transaction {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String   // purchase | earn | spend | refund | withdraw
+  credits      Int
+  amountCents  Int
+  currency     String
+  status       String   // pending | succeeded | failed
+  provider     String
+  providerRef  String
+  meta         Json
+  createdAt    DateTime @default(now())
+
+  @@unique([provider, providerRef])
+}
