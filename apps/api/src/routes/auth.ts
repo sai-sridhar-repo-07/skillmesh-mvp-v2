@@ -1,73 +1,67 @@
-import { Router } from "express";
+import express from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { z } from "zod";
-import { RegisterDTO, LoginDTO } from "../dto";
 import User from "../models/User";
 import { signAccess, signRefresh, verifyRefresh } from "../utils/jwt";
+import passport from "passport";
 
-const router = Router();
+const router = express.Router();
 
+/** POST /api/auth/register */
 router.post("/register", async (req, res) => {
-  const parse = RegisterDTO.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
-  const { name, email, password } = parse.data;
-  const existing = await User.findOne({ email });
-  if (existing) return res.status(409).json({ error: "Email already registered" });
-  const hash = await bcrypt.hash(password, 12);
-  const user = await User.create({ name, email, passwordHash: hash, roles: ["learner"] });
-  const access = signAccess({ id: user.id, email, roles: user.roles });
-  const refresh = signRefresh({ id: user.id });
-  return res.json({ user: { id: user.id, name, email }, accessToken: access, refreshToken: refresh });
+  const { name, email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ message: "Email & password required" });
+  const exists = await User.findOne({ email });
+  if (exists) return res.status(400).json({ message: "Email already registered" });
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await User.create({ name, email, passwordHash, credits: 0, roles: ["learner"] });
+  const accessToken = signAccess({ id: user._id });
+  const refreshToken = signRefresh({ id: user._id });
+  res.status(201).json({
+    user: { id: user._id, name: user.name, email: user.email, roles: user.roles },
+    accessToken,
+    refreshToken,
+  });
 });
 
+/** POST /api/auth/login */
 router.post("/login", async (req, res) => {
-  const parse = LoginDTO.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
-  const { email, password } = parse.data;
+  const { email, password } = req.body || {};
   const user = await User.findOne({ email });
-  if (!user || !user.passwordHash) return res.status(401).json({ error: "Invalid credentials" });
+  if (!user || !user.passwordHash) return res.status(400).json({ message: "Invalid credentials" });
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-  const access = signAccess({ id: user.id, email, roles: user.roles });
-  const refresh = signRefresh({ id: user.id });
-  return res.json({ user: { id: user.id, name: user.name, email }, accessToken: access, refreshToken: refresh });
+  if (!ok) return res.status(400).json({ message: "Invalid credentials" });
+  const accessToken = signAccess({ id: user._id });
+  const refreshToken = signRefresh({ id: user._id });
+  res.json({
+    user: { id: user._id, name: user.name, email: user.email, roles: user.roles },
+    accessToken,
+    refreshToken,
+  });
 });
 
-router.post("/refresh", async (req, res) => {
+/** POST /api/auth/refresh */
+router.post("/refresh", (req, res) => {
   const { refreshToken } = req.body || {};
-  if (!refreshToken) return res.status(400).json({ error: "Missing refreshToken" });
+  if (!refreshToken) return res.status(400).json({ message: "refreshToken required" });
   try {
-    const payload = verifyRefresh(refreshToken) as any;
-    const user = await User.findById(payload.id);
-    if (!user) return res.status(401).json({ error: "Invalid token" });
-    const access = signAccess({ id: user.id, email: user.email, roles: user.roles });
-    return res.json({ accessToken: access });
+    const decoded = verifyRefresh(refreshToken);
+    const accessToken = signAccess({ id: (decoded as any).id });
+    const newRefresh = signRefresh({ id: (decoded as any).id });
+    res.json({ accessToken, refreshToken: newRefresh });
   } catch {
-    return res.status(401).json({ error: "Invalid token" });
+    res.status(401).json({ message: "Invalid refresh token" });
   }
 });
 
-router.post("/logout", (req, res) => {
-  return res.json({ ok: true });
-});
+/** POST /api/auth/logout (stateless) */
+router.post("/logout", (_req, res) => res.json({ success: true }));
+
+/** Google OAuth (kept optional; works when env keys set) */
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"], session: false }));
+router.get(
+  "/google/callback",
+  passport.authenticate("google", { session: false, failureRedirect: `${process.env.CLIENT_ORIGIN}/auth/login` }),
+  (_req, res) => res.redirect(`${process.env.CLIENT_ORIGIN}/dashboard`)
+);
 
 export default router;
-
-import passport from "../passport";
-
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
-
-router.get("/google/callback",
-  passport.authenticate("google", { session: false, failureRedirect: process.env.CLIENT_ORIGIN }),
-  async (req, res) => {
-    const user: any = (req as any).user;
-    const access = signAccess({ id: user.id, email: user.email, roles: user.roles });
-    const refresh = signRefresh({ id: user.id });
-    const redirect = new URL(process.env.CLIENT_ORIGIN!);
-    redirect.pathname = "/dashboard";
-    redirect.searchParams.set("accessToken", access);
-    redirect.searchParams.set("refreshToken", refresh);
-    res.redirect(redirect.toString());
-  }
-);
